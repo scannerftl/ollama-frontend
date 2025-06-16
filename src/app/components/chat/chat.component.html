@@ -49,11 +49,21 @@
            class="message" 
            [class.outgoing]="message.isUser"
            [class.incoming]="!message.isUser">
-        <div class="message-content">
-          {{ message.content }}
+        <div class="message-header">
+          <span class="message-sender">
+            {{ message.isUser ? 'Vous' : 'Assistant' }}
+            <span class="message-role" [class.user-role]="message.isUser" [class.assistant-role]="!message.isUser">
+              {{ message.isUser ? 'Utilisateur' : 'IA' }}
+            </span>
+          </span>
+          <span class="message-time">
+            {{ message.timestamp | date:'shortTime' }}
+          </span>
         </div>
-        <div class="message-time">
-          {{ message.timestamp | date:'shortTime' }}
+        <div class="message-content">
+          <div class="message-text">
+            {{ message.content }}
+          </div>
         </div>
       </div>
     </div>
