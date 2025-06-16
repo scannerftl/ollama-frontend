@@ -69,14 +69,16 @@ export class AppComponent implements OnInit, AfterViewChecked {
     setTimeout(() => {
       this.conversations = [
         {
-          id: 1,
+          id: '1',
+          name: 'Première conversation',
           title: 'Première conversation',
           lastMessage: 'Bonjour, comment ça va ?',
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
           participants: [],
           messages: [],
-          createdAt: new Date()
-        }
+          createdAt: new Date().toISOString(),
+          messageCount: 0
+        } as Conversation
       ];
       this.isLoading = false;
     }, 1000);
@@ -87,11 +89,11 @@ export class AppComponent implements OnInit, AfterViewChecked {
     
     // Charger les messages de la conversation
     if (!conversation.messages || conversation.messages.length === 0) {
-      this.loadMessages(conversation.id as number);
+      this.loadMessages(conversation.id);
     }
   }
   
-  loadMessages(conversationId: number) {
+  loadMessages(conversationId: string) {
     this.isLoading = true;
     
     // Simuler le chargement des messages
@@ -99,14 +101,14 @@ export class AppComponent implements OnInit, AfterViewChecked {
       if (this.selectedConversation) {
         this.selectedConversation.messages = [
           {
-            id: 1,
+            id: Date.now().toString(),
             conversationId: conversationId,
             content: 'Bonjour, comment puis-je vous aider ?',
             sender: 'assistant',
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(),
             sent: true,
             isUser: false
-          }
+          } as Message
         ];
       }
       this.isLoading = false;
@@ -118,11 +120,11 @@ export class AppComponent implements OnInit, AfterViewChecked {
     
     // Créer un nouveau message
     const newMessage: Message = {
-      id: Date.now(),
-      conversationId: this.selectedConversation.id as number,
+      id: Date.now().toString(),
+      conversationId: this.selectedConversation.id,
       content: this.newMessage,
       sender: 'user',
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
       sent: true,
       isUser: true
     };
@@ -134,7 +136,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
     
     this.selectedConversation.messages.push(newMessage);
     this.selectedConversation.lastMessage = this.newMessage;
-    this.selectedConversation.updatedAt = new Date();
+    this.selectedConversation.updatedAt = new Date().toISOString();
     
     // Réinitialiser le champ de saisie
     this.newMessage = '';
@@ -143,14 +145,14 @@ export class AppComponent implements OnInit, AfterViewChecked {
     setTimeout(() => {
       if (this.selectedConversation) {
         const reply: Message = {
-          id: Date.now() + 1,
-          conversationId: this.selectedConversation.id as number,
+          id: (Date.now() + 1).toString(),
+          conversationId: this.selectedConversation.id,
           content: 'Je suis une réponse automatique. Comment puis-je vous aider ?',
           sender: 'assistant',
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
           sent: true,
           isUser: false
-        };
+        } as Message;
         
         if (!this.selectedConversation.messages) {
           this.selectedConversation.messages = [];
@@ -158,7 +160,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
         
         this.selectedConversation.messages.push(reply);
         this.selectedConversation.lastMessage = reply.content;
-        this.selectedConversation.updatedAt = new Date();
+        this.selectedConversation.updatedAt = new Date().toISOString();
       }
     }, 1000);
   }
@@ -166,14 +168,17 @@ export class AppComponent implements OnInit, AfterViewChecked {
   createNewConversation() {
     const title = prompt('Nom de la conversation:');
     if (title) {
+      const now = new Date().toISOString();
       const newConversation: Conversation = {
-        id: Date.now(),
+        id: Date.now().toString(),
+        name: title,
         title: title,
         participants: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
+        messageCount: 0,
         messages: []
-      };
+      } as Conversation;
       
       this.conversations = [newConversation, ...this.conversations];
       this.selectConversation(newConversation);
