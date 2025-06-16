@@ -1,6 +1,6 @@
-import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, inject, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterModule, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,7 +14,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { ApiService, Conversation, Message } from './services/api.service';
+import { ApiService, Conversation, Message, PromptResponse } from './services/api.service';
+import { AuthService } from './services/auth.service';
 import { TruncatePipe } from './pipes/truncate.pipe';
 
 @Component({
@@ -22,6 +23,7 @@ import { TruncatePipe } from './pipes/truncate.pipe';
   standalone: true,
   imports: [
     CommonModule, 
+    RouterModule,
     RouterOutlet, 
     RouterLink, 
     RouterLinkActive,
@@ -42,7 +44,7 @@ import { TruncatePipe } from './pipes/truncate.pipe';
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']
 })
-export class AppComponent implements OnInit, AfterViewChecked {
+export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
   
   conversations: Conversation[] = [];
@@ -51,11 +53,35 @@ export class AppComponent implements OnInit, AfterViewChecked {
   isLoading = false;
   
   private apiService = inject(ApiService);
+  authService = inject(AuthService); // Rendre public pour le template
+  private router = inject(Router);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   
   ngOnInit() {
+    // Vérifier si l'utilisateur est connecté
+    if (!this.authService.isLoggedIn()) {
+      this.router.navigate(['/startup']);
+      return;
+    }
+    
+    // Rediriger vers le chat si l'utilisateur est déjà sur la page d'accueil
+    if (this.router.url === '/') {
+      this.router.navigate(['/chat']);
+      return;
+    }
+    
     this.loadConversations();
+  }
+
+  ngOnDestroy() {
+    // Nettoyage si nécessaire
+  }
+
+  // Déconnexion de l'utilisateur
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['/startup']);
   }
   
   ngAfterViewChecked() {
@@ -65,23 +91,27 @@ export class AppComponent implements OnInit, AfterViewChecked {
   loadConversations() {
     this.isLoading = true;
     
-    // Simuler le chargement des conversations
-    setTimeout(() => {
-      this.conversations = [
-        {
-          id: '1',
-          name: 'Première conversation',
-          title: 'Première conversation',
-          lastMessage: 'Bonjour, comment ça va ?',
-          updatedAt: new Date().toISOString(),
-          participants: [],
-          messages: [],
-          createdAt: new Date().toISOString(),
-          messageCount: 0
-        } as Conversation
-      ];
-      this.isLoading = false;
-    }, 1000);
+    const userId = this.authService.getUserId();
+    if (!userId) {
+      console.error('Aucun utilisateur connecté');
+      this.router.navigate(['/startup']);
+      return;
+    }
+    
+    this.apiService.getDiscussions(userId).subscribe({
+      next: (discussions) => {
+        this.conversations = discussions;
+        if (discussions.length > 0 && !this.selectedConversation) {
+          this.selectConversation(discussions[0]);
+        }
+        this.isLoading = false;
+      },
+      error: (error) => {
+        console.error('Erreur lors du chargement des discussions:', error);
+        this.showError('Impossible de charger les discussions');
+        this.isLoading = false;
+      }
+    });
   }
   
   selectConversation(conversation: Conversation) {
@@ -102,13 +132,11 @@ export class AppComponent implements OnInit, AfterViewChecked {
         this.selectedConversation.messages = [
           {
             id: Date.now().toString(),
-            conversationId: conversationId,
+            role: 'assistant',
             content: 'Bonjour, comment puis-je vous aider ?',
-            sender: 'assistant',
             timestamp: new Date().toISOString(),
-            sent: true,
             isUser: false
-          } as Message
+          }
         ];
       }
       this.isLoading = false;
@@ -121,11 +149,9 @@ export class AppComponent implements OnInit, AfterViewChecked {
     // Créer un nouveau message
     const newMessage: Message = {
       id: Date.now().toString(),
-      conversationId: this.selectedConversation.id,
+      role: 'user',
       content: this.newMessage,
-      sender: 'user',
       timestamp: new Date().toISOString(),
-      sent: true,
       isUser: true
     };
     
@@ -141,28 +167,32 @@ export class AppComponent implements OnInit, AfterViewChecked {
     // Réinitialiser le champ de saisie
     this.newMessage = '';
     
-    // Simuler une réponse automatique après un délai
-    setTimeout(() => {
-      if (this.selectedConversation) {
-        const reply: Message = {
-          id: (Date.now() + 1).toString(),
-          conversationId: this.selectedConversation.id,
-          content: 'Je suis une réponse automatique. Comment puis-je vous aider ?',
-          sender: 'assistant',
-          timestamp: new Date().toISOString(),
-          sent: true,
-          isUser: false
-        } as Message;
-        
-        if (!this.selectedConversation.messages) {
-          this.selectedConversation.messages = [];
+    // Utiliser le service API pour envoyer le message
+    this.apiService.sendPrompt(
+      newMessage.content,
+      'llama3-8b-8192',
+      this.selectedConversation.id
+    ).subscribe({
+      next: (response: PromptResponse) => {
+        if (this.selectedConversation) {
+          const reply: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: response.response,
+            timestamp: new Date().toISOString(),
+            isUser: false
+          };
+          
+          this.selectedConversation.messages.push(reply);
+          this.selectedConversation.lastMessage = reply.content;
+          this.selectedConversation.updatedAt = new Date().toISOString();
         }
-        
-        this.selectedConversation.messages.push(reply);
-        this.selectedConversation.lastMessage = reply.content;
-        this.selectedConversation.updatedAt = new Date().toISOString();
+      },
+      error: (error) => {
+        console.error('Erreur lors de l\'envoi du message:', error);
+        // Afficher un message d'erreur à l'utilisateur si nécessaire
       }
-    }, 1000);
+    });
   }
   
   createNewConversation() {
@@ -173,12 +203,11 @@ export class AppComponent implements OnInit, AfterViewChecked {
         id: Date.now().toString(),
         name: title,
         title: title,
-        participants: [],
         createdAt: now,
         updatedAt: now,
         messageCount: 0,
         messages: []
-      } as Conversation;
+      };
       
       this.conversations = [newConversation, ...this.conversations];
       this.selectConversation(newConversation);

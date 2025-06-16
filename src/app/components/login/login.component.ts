@@ -8,7 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterModule } from '@angular/router';
-import { ApiService } from '../../services/api.service';
+import { AuthService } from '../../services/auth.service';
 import { catchError, finalize, of } from 'rxjs';
 
 @Component({
@@ -36,24 +36,22 @@ export class LoginComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private apiService: ApiService,
+    private authService: AuthService,
     private router: Router
   ) {
     this.loginForm = this.fb.group({
-      username: ['', [Validators.required]],
-      password: ['', [Validators.required, Validators.minLength(6)]]
+      userId: ['', [Validators.required, Validators.minLength(3)]]
     });
   }
 
   ngOnInit(): void {
     // Vérifier si l'utilisateur est déjà connecté
-    const token = localStorage.getItem('auth_token');
-    if (token) {
+    if (this.authService.isLoggedIn()) {
       this.router.navigate(['/']);
     }
   }
 
-  onSubmit() {
+  onSubmit(): void {
     if (this.loginForm.invalid) {
       return;
     }
@@ -61,24 +59,19 @@ export class LoginComponent implements OnInit {
     this.isLoading = true;
     this.error = '';
 
-    const { username, password } = this.loginForm.value;
-
-    this.apiService.login({ username, password })
-      .pipe(
-        finalize(() => this.isLoading = false),
-        catchError(error => {
-          this.error = 'Nom d\'utilisateur ou mot de passe incorrect';
-          return of(null);
-        })
-      )
-      .subscribe(response => {
-        if (response && response.token) {
-          localStorage.setItem('auth_token', response.token);
-          this.router.navigate(['/']);
-        }
-      });
+    const { userId } = this.loginForm.value;
+    
+    // Simuler une requête asynchrone
+    setTimeout(() => {
+      try {
+        this.authService.setUserId(userId);
+        this.router.navigate(['/']);
+      } catch (err) {
+        this.error = 'Une erreur est survenue lors de la connexion';
+        console.error('Erreur de connexion:', err);
+      } finally {
+        this.isLoading = false;
+      }
+    }, 500);
   }
-
-  get username() { return this.loginForm.get('username'); }
-  get password() { return this.loginForm.get('password'); }
 }

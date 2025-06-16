@@ -1,237 +1,248 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError, of } from 'rxjs';
-import { catchError, retry, tap, map } from 'rxjs/operators';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+import { AuthService } from './auth.service';
 
-// Interface pour les messages du frontend
+// Interfaces communes
 export interface Message {
-  id: number | string;  // Peut être un nombre ou une chaîne (UUID)
-  conversationId: string;  // Toujours une chaîne pour supporter les UUID
-  content: string;
-  sender: string;
-  timestamp: Date | string;  // Peut être une chaîne ISO ou un objet Date
-  sent: boolean;
-  isUser?: boolean; // Pour indiquer si le message provient de l'utilisateur
-  isLoading?: boolean; // Pour afficher un indicateur de chargement
-  error?: boolean; // Pour indiquer une erreur d'envoi
-}
-
-// Interface pour les messages de l'API
-export interface ApiMessage {
-  id: number;
+  id: string;
   role: 'user' | 'assistant';
   content: string;
-  timestamp: string;
+  timestamp: string | Date;
+  isUser: boolean;
+  isLoading?: boolean;
+  error?: boolean;
 }
 
-// Interface pour les conversations renvoyées par l'API
 export interface Conversation {
-  id: string;  // UUID
-  name: string;  // Le titre de la conversation
-  createdAt: string;  // Date de création
-  messageCount: number;  // Nombre de messages
-  // Champs optionnels pour le frontend
-  title?: string;  // Alias pour name pour la compatibilité
-  updatedAt?: string | Date;  // Alias pour createdAt
-  lastMessage?: string;  // Dernier message (optionnel)
-  unreadCount?: number;  // Nombre de messages non lus (optionnel)
-  messages?: Message[];  // Messages de la conversation (optionnel)
-  participants?: string[];  // Participants (optionnel pour la compatibilité)
+  id: string;
+  name: string;
+  title: string;
+  messages: Message[];
+  messageCount: number;
+  updatedAt: string | Date;
+  lastMessage?: string;
+  createdAt: string | Date;
+}
+
+// Alias pour maintenir la compatibilité
+// Discussion est maintenant identique à Conversation
+export type Discussion = Conversation;
+
+export interface PromptRequest {
+  prompt: string;
+  model: string;
+  discussionId: string | null;
+  userId: string;
+}
+
+export interface PromptResponse {
+  response: string;
+  discussionId: string;
+  discussionName: string;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
-  // URL directe vers le serveur backend
-  private apiUrl = 'http://localhost:8080/api';
-  private httpOptions = {
-    headers: new HttpHeaders({
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    })
-  };
+  private readonly apiUrl = 'http://localhost:8080/api';
+  
+  constructor(
+    private readonly http: HttpClient,
+    private readonly authService: AuthService
+  ) {}
 
-  constructor(private http: HttpClient) { }
+  private getHttpOptions() {
+    // En-têtes HTTP de base
+    return {
+      headers: new HttpHeaders({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      })
+    };
+  }
 
-  // Gestion des erreurs HTTP
   private handleError(error: HttpErrorResponse) {
-    let errorMessage = 'Une erreur est survenue';
+    let errorMessage = 'Une erreur inconnue est survenue';
+    
     if (error.error instanceof ErrorEvent) {
       // Erreur côté client
       errorMessage = `Erreur: ${error.error.message}`;
-    } else {
+    } else if (error.status) {
       // Erreur côté serveur
-      errorMessage = `Code d'erreur: ${error.status}\nMessage: ${error.message}`;
+      errorMessage = `Erreur ${error.status}: ${error.statusText || 'Erreur inconnue'}`;
+      if (error.error?.message) {
+        errorMessage += ` - ${error.error.message}`;
+      }
     }
-    console.error(errorMessage);
-    return throwError(() => errorMessage);
-  }
-
-  // Gestion des conversations
-  getConversations(userId: string): Observable<Conversation[]> {
-    // Utilisation de l'endpoint correct pour récupérer les conversations d'un utilisateur
-    const url = `${this.apiUrl}/discussions/user/${userId}`;
-    console.log('URL de récupération des conversations:', url);
     
-    return this.http.get<any[]>(url, this.httpOptions)
-      .pipe(
-        tap(conversations => {
-          console.log('Données brutes des conversations reçues:', conversations);
-        }),
-        // Transformer les données pour correspondre à l'interface Conversation
-        map(apiConversations => {
-          if (!apiConversations || !Array.isArray(apiConversations)) {
-            console.warn('La réponse de l\'API n\'est pas un tableau valide:', apiConversations);
-            return [];
-          }
-          
-          return apiConversations.map(conv => ({
-            id: conv.id?.toString() || Math.random().toString(36).substr(2, 9),
-            name: conv.name || 'Nouvelle conversation',
-            title: conv.title || conv.name || 'Nouvelle conversation',
-            createdAt: conv.createdAt || new Date().toISOString(),
-            updatedAt: conv.updatedAt || conv.createdAt || new Date().toISOString(),
-            messageCount: conv.messageCount || 0,
-            lastMessage: conv.lastMessage,
-            participants: conv.participants || [userId],
-            messages: conv.messages || [],
-            unreadCount: conv.unreadCount || 0
-          } as Conversation));
-        }),
-        tap(conversations => {
-          console.log('Conversations transformées:', conversations);
-        }),
-        catchError(error => {
-          console.error('Erreur lors de la récupération des conversations:', error);
-          // Afficher un message d'erreur plus détaillé
-          if (error.status === 404) {
-            console.error('Endpoint non trouvé. Vérifiez que le backend est en cours d\'exécution et que l\'URL est correcte.');
-          } else if (error.status === 0) {
-            console.error('Impossible de se connecter au serveur. Vérifiez que le serveur est en cours d\'exécution et accessible.');
-          }
-          // Retourner un tableau vide en cas d'erreur
-          return of([]);
-        })
-      );
+    console.error('Erreur API:', errorMessage);
+    return throwError(() => new Error(errorMessage));
+  }
+
+  /**
+   * Crée une nouvelle discussion avec un message initial
+   * @param message Le message initial
+   * @param model Le modèle à utiliser (par défaut: llama3-8b-8192)
+   * @returns Un Observable contenant la réponse du serveur
+   */
+  /**
+   * Crée une nouvelle discussion avec un message initial
+   * @param message Le message initial
+   * @param model Le modèle à utiliser (par défaut: llama3-8b-8192)
+   * @returns Un Observable contenant la réponse du serveur
+   */
+  createDiscussion(message: string, model: string = 'llama3-8b-8192'): Observable<PromptResponse> {
+    const userId = this.authService.getUserId();
     
-  }
-
-  getConversation(conversationId: number): Observable<Conversation> {
-    return this.http.get<Conversation>(`${this.apiUrl}/discussions/${conversationId}`, this.httpOptions)
-      .pipe(
-        retry(3),
-        catchError(this.handleError)
-      );
-  }
-
-  createConversation(participants: string[], title: string): Observable<Conversation> {
-    return this.http.post<Conversation>(
-      `${this.apiUrl}/discussions`,
-      { participants, title },
-      this.httpOptions
-    ).pipe(
-      catchError(this.handleError)
-    );
-  }
-
-  // Gestion des messages
-  getMessages(conversationId: string, userId: string): Observable<Message[]> {
-    // Construire l'URL avec le paramètre userId
-    const url = `${this.apiUrl}/discussions/${conversationId}/messages?userId=${encodeURIComponent(userId)}`;
-    console.log('Tentative de récupération des messages depuis:', url);
-    console.log('Type de conversationId:', typeof conversationId, 'Valeur:', conversationId);
+    if (!userId) {
+      return throwError(() => new Error('Utilisateur non connecté'));
+    }
     
-    return this.http.get<ApiMessage[]>(
-      url,
-      this.httpOptions
-    ).pipe(
-      tap({
-        next: (response: ApiMessage[]) => console.log('Réponse reçue:', response),
-        error: (error: any) => console.error('Erreur lors de la récupération des messages:', error)
-      } as any),
-      // Convertir les messages de l'API vers le format du frontend
-      map((apiMessages: ApiMessage[]) => 
-        apiMessages.map(msg => ({
-          id: msg.id.toString(), // Convertir en chaîne
-          conversationId: conversationId, // Utiliser l'ID de conversation fourni
-          content: msg.content,
-          sender: msg.role,
-          timestamp: msg.timestamp, // Laisser en tant que chaîne, sera converti si nécessaire
-          sent: true,
-          isUser: msg.role === 'user'
-        } as Message))
-      ),
-      retry(3),
-      catchError(this.handleError)
-    );
-  }
-
-  sendMessage(conversationId: string | number, content: string): Observable<Message> {
-    // Convertir l'ID en chaîne pour l'URL
-    const id = conversationId.toString();
-    const userId = 'leonel'; // Remplacer par l'ID utilisateur réel si disponible
-    
-    // Créer le corps de la requête selon le format attendu par le backend
-    const requestBody = {
-      prompt: content,
-      model: 'llama3-8b-8192', // Modèle par défaut
-      discussionId: id,
+    // Créer la requête avec les paramètres attendus par le backend
+    const request = {
+      prompt: message,
+      model: model,
+      discussionId: null, // null pour indiquer une nouvelle discussion
       userId: userId
     };
 
-    return this.http.post<{
-      response: string;
-      discussionId: string;
-      discussionName: string;
-    }>(
+    // Utiliser l'endpoint /api/prompt comme spécifié dans l'exemple Postman
+    return this.http.post<PromptResponse>(
       `${this.apiUrl}/prompt`,
-      requestBody,
-      this.httpOptions
+      request,
+      this.getHttpOptions()
     ).pipe(
-      map(response => {
-        // Créer un objet Message à partir de la réponse
-        const message: Message = {
-          id: Date.now().toString(), // ID temporaire
-          conversationId: response.discussionId,
-          content: response.response,
-          sender: 'assistant',
-          timestamp: new Date().toISOString(),
-          sent: true,
-          isUser: false
-        };
-        return message;
-      }),
+      catchError(error => {
+        console.error('Erreur lors de la création de la discussion:', error);
+        return this.handleError(error);
+      })
+    );
+  }
+
+  /**
+   * Envoie un prompt à l'API et retourne la réponse
+   * @param prompt Le message de l'utilisateur
+   * @param model Le modèle à utiliser (par défaut: llama3-8b-8192)
+   * @param discussionId L'ID de la discussion en cours
+   * @returns Un Observable contenant la réponse du serveur
+   */
+  /**
+   * Envoie un prompt à l'API et retourne la réponse
+   * @param prompt Le message de l'utilisateur
+   * @param model Le modèle à utiliser (par défaut: llama3-8b-8192)
+   * @param discussionId L'ID de la discussion en cours
+   * @returns Un Observable contenant la réponse du serveur
+   */
+  sendPrompt(prompt: string, model: string, discussionId: string): Observable<PromptResponse> {
+    const userId = this.authService.getUserId();
+    
+    if (!userId) {
+      return throwError(() => new Error('Utilisateur non connecté'));
+    }
+    
+    // Créer la requête avec les paramètres attendus par le backend
+    const request = {
+      prompt: prompt,
+      model: model || 'llama3-8b-8192',
+      discussionId: discussionId,
+      userId: userId
+    };
+
+    // Utiliser l'endpoint /api/prompt comme spécifié dans l'exemple Postman
+    return this.http.post<PromptResponse>(
+      `${this.apiUrl}/prompt`,
+      request,
+      this.getHttpOptions()
+    ).pipe(
+      catchError(error => {
+        console.error('Erreur lors de l\'envoi du message:', error);
+        return this.handleError(error);
+      })
+    );
+  }
+
+  /**
+   * Récupère les discussions d'un utilisateur
+   * @param userId L'identifiant de l'utilisateur
+   * @returns Un Observable contenant la liste des discussions de l'utilisateur
+   */
+  getDiscussions(userId: string): Observable<Discussion[]> {
+    return this.http.get<Discussion[]>(
+      `${this.apiUrl}/discussions/user/${userId}`,
+      this.getHttpOptions()
+    ).pipe(
+      map((discussions: any[]) => 
+        (discussions || []).map((discussion: any) => ({
+          id: discussion.id,
+          name: discussion.name || 'Nouvelle discussion',
+          title: discussion.title,
+          lastMessage: discussion.lastMessage,
+          updatedAt: discussion.updatedAt || new Date().toISOString(),
+          messageCount: discussion.messageCount || 0,
+          messages: discussion.messages || [],
+          createdAt: discussion.createdAt || new Date().toISOString()
+        }))
+      ),
       catchError(this.handleError)
     );
   }
 
-  // Authentification
-  login(credentials: { username: string; password: string }): Observable<{ token: string }> {
-    return this.http.post<{ token: string }>(
-      `${this.apiUrl}/auth/login`,
-      credentials,
-      this.httpOptions
+  /**
+   * Récupère les messages d'une discussion
+   * @param discussionId L'identifiant de la discussion
+   * @returns Un Observable contenant la liste des messages
+   */
+  getDiscussionMessages(discussionId: string): Observable<Message[]> {
+    const userId = this.authService.getUserId();
+    if (!userId) {
+      return throwError(() => new Error('Utilisateur non connecté'));
+    }
+    
+    // Ajouter le paramètre userId à l'URL
+    const params = new HttpParams().set('userId', userId);
+    
+    return this.http.get<Message[]>(
+      `${this.apiUrl}/discussions/${discussionId}/messages`,
+      { ...this.getHttpOptions(), params }
+    ).pipe(
+      map((messages: any[]) => 
+        (messages || []).map((msg: any) => ({
+          id: msg.id?.toString() || Date.now().toString(),
+          role: msg.role || (msg.isUser ? 'user' : 'assistant'),
+          content: msg.content || msg.message || '',
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+          isUser: msg.role === 'user'
+        }))
+      ),
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Supprime une discussion
+   * @param discussionId L'identifiant de la discussion à supprimer
+   * @returns Un Observable qui se complète une fois la suppression effectuée
+   */
+  deleteDiscussion(discussionId: string): Observable<void> {
+    return this.http.delete<void>(
+      `${this.apiUrl}/discussions/${discussionId}`,
+      this.getHttpOptions()
     ).pipe(
       catchError(this.handleError)
     );
   }
 
-  register(user: { username: string; email: string; password: string }): Observable<any> {
-    return this.http.post(
-      `${this.apiUrl}/auth/register`,
-      user,
-      this.httpOptions
-    ).pipe(
-      catchError(this.handleError)
-    );
-  }
-
-  // Gestion des utilisateurs
+  /**
+   * Récupère les informations de l'utilisateur connecté
+   * @returns Un Observable contenant les informations de l'utilisateur
+   */
   getCurrentUser(): Observable<any> {
     return this.http.get(
       `${this.apiUrl}/users/me`,
-      this.httpOptions
+      this.getHttpOptions()
     ).pipe(
       catchError(this.handleError)
     );

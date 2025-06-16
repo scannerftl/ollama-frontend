@@ -1,41 +1,19 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { CanActivate, Router, UrlTree } from '@angular/router';
 import { Observable, of } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
-import { ApiService } from '../services/api.service';
+import { AuthService } from '../services/auth.service';
 
 @Injectable({
   providedIn: 'root'
 })
-class AuthGuard implements CanActivate {
-  constructor(
-    private apiService: ApiService,
-    private router: Router
-  ) {}
+export class AuthGuard implements CanActivate {
+  private authService = inject(AuthService);
+  private router = inject(Router);
 
-  canActivate(): Observable<boolean | UrlTree> {
-    const token = localStorage.getItem('auth_token');
-    
-    if (!token) {
-      return of(this.router.createUrlTree(['/login']));
+  canActivate(): boolean | UrlTree {
+    if (this.authService.isLoggedIn()) {
+      return true;
     }
-
-    // Vérifier la validité du token auprès du serveur
-    return this.apiService.getCurrentUser().pipe(
-      map(user => {
-        if (user) {
-          return true;
-        } else {
-          localStorage.removeItem('auth_token');
-          return this.router.createUrlTree(['/login']);
-        }
-      }),
-      catchError(() => {
-        localStorage.removeItem('auth_token');
-        return of(this.router.createUrlTree(['/login']));
-      })
-    );
+    return this.router.createUrlTree(['/startup']);
   }
 }
-
-export { AuthGuard };

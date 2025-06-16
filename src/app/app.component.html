@@ -1,90 +1,24 @@
-<div class="chat-container">
-  <!-- Barre latérale des conversations -->
-  <div class="sidebar">
-    <div class="sidebar-header">
-      <h2>Conversations</h2>
-      <button mat-icon-button (click)="createNewConversation()" matTooltip="Nouvelle conversation">
-        <mat-icon>add</mat-icon>
-      </button>
-    </div>
-    
-    <div class="conversation-list">
-      <div *ngFor="let conv of conversations" 
-           class="conversation-item" 
-           [class.active]="selectedConversation?.id === conv.id"
-           (click)="selectConversation(conv)">
-        <div class="conversation-info">
-          <h3>{{ conv.title }}</h3>
-          <p *ngIf="conv.lastMessage" class="last-message">
-            {{ conv.lastMessage | truncate:30 }}
-          </p>
-        </div>
-        <div class="conversation-time" *ngIf="conv.updatedAt">
-          {{ conv.updatedAt | date:'shortTime' }}
-        </div>
-      </div>
-      
-      <div *ngIf="!conversations?.length" class="no-conversations">
-        <p>Aucune conversation</p>
-        <button mat-button color="primary" (click)="createNewConversation()">
-          Créer une conversation
-        </button>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Zone de chat principale -->
-  <div class="chat-area" *ngIf="selectedConversation; else noConversationSelected">
-    <div class="chat-header">
-      <h2>{{ selectedConversation.title }}</h2>
-      <div class="chat-actions">
-        <button mat-icon-button matTooltip="Options">
-          <mat-icon>more_vert</mat-icon>
-        </button>
-      </div>
-    </div>
-    
-    <div class="messages-container" #messagesContainer>
-      <div *ngFor="let message of selectedConversation.messages || []" 
-           class="message" 
-           [class.outgoing]="message.isUser"
-           [class.incoming]="!message.isUser">
-        <div class="message-content">
-          {{ message.content }}
-        </div>
-        <div class="message-time">
-          {{ message.timestamp | date:'shortTime' }}
-        </div>
-      </div>
-    </div>
-    
-    <div class="message-input">
-      <mat-form-field class="full-width">
-        <input matInput 
-               [(ngModel)]="newMessage" 
-               placeholder="Tapez votre message..."
-               (keyup.enter)="sendMessage()"
-               [disabled]="!selectedConversation">
-      </mat-form-field>
-      <button mat-icon-button 
-              color="primary" 
-              (click)="sendMessage()"
-              [disabled]="!newMessage.trim() || !selectedConversation">
-        <mat-icon>send</mat-icon>
-      </button>
-    </div>
-  </div>
-  
-  <!-- Aucune conversation sélectionnée -->
-  <ng-template #noConversationSelected>
-    <div class="no-selection">
-      <mat-icon class="icon">forum</mat-icon>
-      <h2>Sélectionnez ou créez une conversation pour commencer</h2>
-    </div>
-  </ng-template>
+<div class="app-container">
+  <!-- Barre de navigation -->
+  <header class="app-header">
+    <h1>Ollama Chat</h1>
+    <button mat-button (click)="logout()" *ngIf="authService.isLoggedIn()">
+      <mat-icon>logout</mat-icon> Déconnexion
+    </button>
+  </header>
+
+  <!-- Contenu principal avec routage -->
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+
+  <!-- Barre de navigation inférieure -->
+  <footer class="app-footer">
+    <p>© 2025 Ollama Chat - Tous droits réservés</p>
+  </footer>
 </div>
 
-<!-- Spinner de chargement -->
+<!-- Spinner de chargement global -->
 <div class="loading-overlay" *ngIf="isLoading">
   <mat-spinner></mat-spinner>
 </div>

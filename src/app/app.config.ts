@@ -14,6 +14,7 @@ import { MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatListModule } from '@angular/material/list';
 import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
 
 import { routes } from '@app/app.routes';
@@ -37,6 +38,7 @@ export const appConfig: ApplicationConfig = {
       MatSnackBarModule,
       MatListModule,
       MatCardModule,
+      MatCheckboxModule,
       MatDividerModule
     ),
     { provide: 'API_URL', useValue: 'http://localhost:8080/api' }
