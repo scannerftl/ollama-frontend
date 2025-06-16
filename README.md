@@ -1,27 +1,141 @@
-# OllamaFrontend
+# Application de Chat Ollama
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 17.3.12.
+Application frontend Angular pour une interface de chat utilisant l'API Ollama. Cette application permet aux utilisateurs de discuter avec un modèle de langage IA et de gérer plusieurs conversations.
 
-## Development server
+## Fonctionnalités principales
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+- Authentification utilisateur simplifiée
+- Gestion des conversations multiples
+- Interface de chat moderne et réactive
+- Formatage Markdown des messages (gras, italique, sauts de ligne)
+- Réponses en temps réel
+- Gestion des erreurs et notifications
 
-## Code scaffolding
+## Prérequis
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+- Node.js (version 16 ou supérieure)
+- npm (version 8 ou supérieure) ou yarn
+- Angular CLI (version 17.3.12)
+- Backend Ollama fonctionnel (par défaut sur `http://localhost:8080`)
 
-## Build
+## Installation
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+1. Cloner le dépôt :
+   ```bash
+   git clone [URL_DU_DEPOT]
+   cd ollama-frontend
+   ```
 
-## Running unit tests
+2. Installer les dépendances :
+   ```bash
+   npm install
+   # ou
+   yarn install
+   ```
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+3. Configurer l'application :
+   - Vérifiez l'URL de l'API dans `src/environments/environment.ts`
+   - Ajustez les paramètres selon vos besoins
 
-## Running end-to-end tests
+## Démarrage
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
+Pour lancer l'application en mode développement :
 
-## Further help
+```bash
+ng serve
+```
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+Ouvrez votre navigateur à l'adresse `http://localhost:4200`
+
+## Structure du projet
+
+```
+src/app/
+├── components/           # Composants principaux
+│   ├── chat/            # Interface de chat
+│   ├── login/           # Page de connexion
+│   └── startup/         # Écran d'accueil
+├── guards/              # Gardes de route
+├── interceptors/        # Intercepteurs HTTP
+├── pipes/               # Pipes personnalisés
+└── services/            # Services partagés
+```
+
+## Configuration
+
+### Variables d'environnement
+
+Créez un fichier `src/environments/environment.ts` avec :
+
+```typescript
+export const environment = {
+  production: false,
+  apiUrl: 'http://localhost:8080/api'  // URL de votre backend
+};
+```
+
+## Développement
+
+### Générer un composant
+
+```bash
+ng generate component components/nom-du-composant
+```
+
+### Lancer les tests unitaires
+
+```bash
+ng test
+```
+
+### Construire pour la production
+
+```bash
+ng build --configuration production
+```
+
+## Formatage des messages
+
+L'application prend en charge le formatage Markdown de base :
+- `**gras**` pour le **texte en gras**
+- `*italique*` pour le *texte en italique*
+- Les sauts de ligne sont automatiquement convertis
+
+## Gestion des erreurs
+
+L'application affiche des notifications en cas d'erreur avec des messages explicites. Les erreurs courantes incluent :
+- Problèmes de connexion au serveur
+- Erreurs d'authentification
+- Erreurs de validation des données
+
+## Sécurité
+
+- Toutes les entrées utilisateur sont échappées pour prévenir les attaques XSS
+- L'authentification est requise pour accéder à l'application
+- Les jetons d'authentification sont stockés de manière sécurisée
+
+## Déploiement
+
+Pour déployer en production :
+
+1. Construire l'application :
+   ```bash
+   ng build --configuration production
+   ```
+
+2. Déployer le contenu du dossier `dist/ollama-frontend` sur votre serveur web
+
+## Contribution
+
+1. Créez une branche pour votre fonctionnalité
+2. Committez vos modifications
+3. Poussez vers la branche
+4. Créez une Pull Request
+
+## Licence
+
+[À spécifier selon vos besoins]
+
+---
+
+Développé avec ❤️ par [Votre Équipe]
