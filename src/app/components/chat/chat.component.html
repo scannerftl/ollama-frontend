@@ -61,8 +61,7 @@
           </span>
         </div>
         <div class="message-content">
-          <div class="message-text">
-            {{ message.content }}
+          <div class="message-text" [innerHTML]="formatMessageText(message.content)">
           </div>
         </div>
       </div>

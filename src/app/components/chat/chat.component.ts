@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, SecurityContext } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -55,7 +56,8 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     private authService: AuthService,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
-    private router: Router
+    private router: Router,
+    private sanitizer: DomSanitizer
   ) {}
 
   ngOnInit() {
@@ -269,5 +271,23 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       duration: 5000,
       panelClass: ['error-snackbar']
     });
+  }
+
+  /**
+   * Formate le texte avec support du Markdown basique (gras avec *texte*)
+   * @param text Le texte à formater
+   * @returns Le texte formaté en HTML sécurisé
+   */
+  formatMessageText(text: string): SafeHtml {
+    if (!text) return '';
+    
+    // Transformer le formatage Markdown en HTML
+    let formattedText = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // **gras**
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')               // *italique*
+      .replace(/\n/g, '<br>');                           // Sauts de ligne
+    
+    // Nettoyer et sécuriser le HTML
+    return this.sanitizer.sanitize(SecurityContext.HTML, formattedText) || '';
   }
 }
