@@ -132,10 +132,6 @@ Pour déployer en production :
 3. Poussez vers la branche
 4. Créez une Pull Request
 
-## Licence
-
-[À spécifier selon vos besoins]
-
 ---
 
-Développé avec ❤️ par [Votre Équipe]
+Développé avec ❤️ par scannerFTL
